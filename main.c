@@ -7,9 +7,6 @@
 #define SPACE ' '
 
 void parse_and_run_command(const char *command) {
-    /* TODO: Implement this.
-       Note that this is not the correct way to test for the exit command.
-       For example the command "  exit  " should also exit your shell. */	
     char token [MAX_LINE];    
     size_t token_len = 0, command_len = strlen(command);	    
     
