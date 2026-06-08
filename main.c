@@ -4,15 +4,32 @@
 #include <string.h>
 
 #define MAX_LINE 101
+#define SPACE ' '
 
 void parse_and_run_command(const char *command) {
     /* TODO: Implement this.
        Note that this is not the correct way to test for the exit command.
-       For example the command "  exit  " should also exit your shell. */
-    if (strcmp(command, "exit") == 0) {
-        exit(0);
+       For example the command "  exit  " should also exit your shell. */	
+    size_t command_len = strlen(command);	
+    char* token = "";    
+
+    for (size_t pos = 0; pos < command_len; ++pos) {
+        
+        if (strcmp(token, "") == 0 || command[pos] == SPACE) {
+            
+            while (command[pos+1] != SPACE) {
+                strcat(token, &command[pos]);
+                pos++;
+            }            
+            
+            strcat(token, &command[pos]);
+        }
+            
+        if (strcmp(token, "exit") == 0) {
+            exit(0);
+        }
+        fprintf(stderr, "Not implemented.\n");
     }
-    fprintf(stderr, "Not implemented.\n");
 }
 
 int main(void) {
