@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #define MAX_LINE 101
 #define MAX_ARGS MAX_LINE
@@ -78,24 +79,24 @@ void parse_and_run_command(const char* command) {
 
         } else if (strcmp(tokens[t], "<") == 0) {
 
-            if (i + 1 >= token_count) {
+            if (t + 1 >= token_count) {
                 fprintf(stderr, "Invalid command\n");
                 return;
             }
 
-            cmds[cmd_count - 1].input_file = tokens[++i];
+            cmds[cmd_count - 1].input_file = tokens[++t];
 
         } else if (strcmp(tokens[t], ">") == 0) {
 
-            if (i + 1 >= token_count) {
+            if (t + 1 >= token_count) {
                 fprintf(stderr, "Invalid command\n");
                 return;
             }
 
-            cmds[cmd_count - 1].output_file = tokens[++i];
+            cmds[cmd_count - 1].output_file = tokens[++t];
 
         } else {
-            cmds[cmd_count - 1].argv[arg_index++] = tokens[i];
+            cmds[cmd_count - 1].argv[arg_index++] = tokens[t];
         }
     }
     cmds[cmd_count - 1].argv[arg_index] = NULL;
@@ -104,31 +105,67 @@ void parse_and_run_command(const char* command) {
         fprintf(stderr, "Invalid command\n");
         return;
     }
-
-    if (command_count > 0) {
-        char output_buffer[MAX_LINE];
-        
-        /*  Execute commands from commmands_to_execute in sequential order
+    
+    // Single command execution 
+    if (cmd_count == 1) {
             
-        */
-        for (size_t it = 0; it < command_count; it++) {
             pid_t pid = fork();
 
-            const char* cmd = commands_to_execute[it];
-            // Test if command is being read properly
-            test_output(cmd);
-            
-            if (strcmp(cmd, "exit") == 0) {
-                exit(0);
-            } else if (strcmp(cmd, "echo")) {
-                
+            if (pid < 0) {
+                perror("fork");
+                return;
+            }
 
-            } else { fprintf(stderr, "Invalid command\n"); }
+            if (pid == 0) {
+
+                // '<' operator contingency
+                if (cmds[0].input_file != NULL) {
+
+                    int fd = open(cmds[0].input_file, O_RDONLY);
+
+                    if (fd < 0) {
+                        perror("open");
+                        exit(1);
+                    }
+
+                    dup2(fd, STDIN_FILENO);
+                    close(fd);
+                }
+
+                // '>' operator contingency
+                if (cmds[0].output_file != NULL) {
+
+                    int fd = open(
+                        cmds[0].output_file,
+                        O_WRONLY | O_CREAT | O_TRUNC,
+                        0666
+                    );
+
+                    if (fd < 0) {
+                        perror("open");
+                        exit(1);
+                    }
+
+                    dup2(fd, STDOUT_FILENO);
+                    close(fd);
+                }
+
+                execv(cmds[0].argv[0], cmds[0].argv);
+
+                perror("execv");
+                exit(1);
+            }
+
+            // Wait for child process to finish executing
+            int status;
+            waitpid(pid, &status, 0);
+
+            if (WIFEXITED(status)) {
+                printf("Exit status: %d\n", WEXITSTATUS(status));
+            }
+
+            return;
         }
-        
-    } else {
-        fprintf(stderr, "Invalid command\n");
-    }
 }
 
 
