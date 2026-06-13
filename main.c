@@ -9,6 +9,11 @@
 #define MAX_ARGS MAX_LINE
 #define MAX_CMDS MAX_LINE
 
+typedef struct {
+    char* argv[MAX_ARGS];
+    char* input_file;
+    char* output_file;
+} Command;
 
 void test_output(const char* cmd) {
     fprintf(stdout, "Processed Input: \"%s\"\n", cmd);
@@ -45,31 +50,59 @@ void parse_and_run_command(const char* command) {
         } else {
             token[token_len++] = c;
         }
+    }
+    if (token_count == 0) {
+        fprintf(stderr, "Invalid command\n");
+        return;
+    }
+    
+    // Parse commands
+    Command cmds[MAX_CMDS];
+    memset(cmds, 0, sizeof(cmds));
 
-        if (token_count == 0) {
-            fprintf(stderr, "Invalid command\n");
-            return;
+    size_t cmd_count = 1;
+    size_t arg_index = 0;
+
+    for (size_t t = 0; t < token_count; t++) {
+
+        if (strcmp(tokens[t], "|") == 0) {
+
+            if (arg_index == 0) {
+                fprintf(stderr, "Invalid command\n");
+                return;
+            }
+
+            cmds[cmd_count - 1].argv[arg_index] = NULL;
+            cmd_count++;
+            arg_index = 0;
+
+        } else if (strcmp(tokens[t], "<") == 0) {
+
+            if (i + 1 >= token_count) {
+                fprintf(stderr, "Invalid command\n");
+                return;
+            }
+
+            cmds[cmd_count - 1].input_file = tokens[++i];
+
+        } else if (strcmp(tokens[t], ">") == 0) {
+
+            if (i + 1 >= token_count) {
+                fprintf(stderr, "Invalid command\n");
+                return;
+            }
+
+            cmds[cmd_count - 1].output_file = tokens[++i];
+
+        } else {
+            cmds[cmd_count - 1].argv[arg_index++] = tokens[i];
         }
+    }
+    cmds[cmd_count - 1].argv[arg_index] = NULL;
 
-        // Begin reading after parsing whitespace 
-        if (command[pos] != ' ') {
-            
-            while(command[pos] != SPACE && command[pos] != '\0') {
-                token[token_len] = command[pos];
-                token_len++;
-                pos++;
-            } 
-            
-            token[token_len] = '\0';
-
-            // Add valid token to list of commands
-            strcpy(commands_to_execute[command_count], token);
-            command_count++;
-        }
-        
-        // Reset token after command read
-        memset(token, 0, MAX_LINE); 
-        token_len = 0;
+    if (cmds[0].argv[0] == NULL) {
+        fprintf(stderr, "Invalid command\n");
+        return;
     }
 
     if (command_count > 0) {
