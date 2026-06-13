@@ -160,12 +160,105 @@ void parse_and_run_command(const char* command) {
             int status;
             waitpid(pid, &status, 0);
 
-            if (WIFEXITED(status)) {
-                printf("Exit status: %d\n", WEXITSTATUS(status));
-            }
+            if (WIFEXITED(status)) printf("Exit status: %d\n", WEXITSTATUS(status));
 
             return;
         }
+
+        // Piping commands
+        int pipes[MAX_CMDS - 1][2];
+        pid_t pids[MAX_CMDS];
+
+        for (size_t p = 0; p < cmd_count - 1; p++) {
+
+            if (pipe(pipes[p]) < 0) {
+                perror("pipe");
+                return;
+            }
+        }
+
+
+    for (size_t p = 0; p < cmd_count; p++) {
+        
+        pids[p] = fork();
+        pid_t pid = pids[p];
+
+        if (pid < 0) {
+            perror("pipe");
+            return;
+        }
+
+        if (pid == 0) {
+
+            // Get input from prior Pipe 
+            if (p > 0) {
+                dup2(pipes[p - 1][0], STDIN_FILENO);
+            }
+            
+            // Get output for next Pipe
+            if (p < cmd_count - 1) {
+                dup2(pipes[p][1], STDOUT_FILENO);
+            }
+
+            // Redirect input
+            if (cmds[p].input_file != NULL) {
+
+                int fd = open(cmds[p].input_file, O_RDONLY);
+
+                if (fd < 0) {
+                    perror("open");
+                    exit(1);
+                }
+
+                dup2(fd, STDIN_FILENO);
+                close(fd);
+            }
+
+            // Redirect output
+            if (cmds[p].output_file != NULL) {
+
+                int fd = open(
+                    cmds[p].output_file,
+                    O_WRONLY | O_CREAT | O_TRUNC,
+                    0666
+                );
+
+                if (fd < 0) {
+                    perror("open");
+                    exit(1);
+                }
+
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            }
+
+            for (size_t j = 0; j < cmd_count - 1; j++) {
+                
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            execv(cmds[p].argv[0], cmds[p].argv);
+
+            perror("execv");
+            exit(1);
+        }          
+    }
+
+    // Parent process closes pipes 
+    for (size_t i = 0; i < cmd_count - 1; i++) {
+        
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    for (size_t i = 0; i < cmd_count; i++) {
+        
+        int status;
+        waitpid(pids[i], &status, 0);
+
+        if (WIFEXITED(status)) printf("Exit status: %d\n", WEXITSTATUS(status));
+    }
 }
 
 
