@@ -86,6 +86,12 @@ void parse_and_run_command(const char* command) {
                 return;
             }
 
+            char* next_token = tokens[t + 1];
+            if (strcmp(next_token, "<") == 0 || strcmp(next_token, ">") == 0 || strcmp(next_token, "|") == 0) {
+                fprintf(stderr, "Invalid command\n");
+                return;
+            }
+
             cmds[cmd_count - 1].input_file = tokens[++t];
 
         } else if (strcmp(tokens[t], ">") == 0) {
@@ -94,7 +100,13 @@ void parse_and_run_command(const char* command) {
                 fprintf(stderr, "Invalid command\n");
                 return;
             }
-
+            
+            char* next_token = tokens[t + 1];
+            if (strcmp(next_token, "<") == 0 || strcmp(next_token, ">") == 0 || strcmp(next_token, "|") == 0) {
+                fprintf(stderr, "Invalid command\n");
+                return;
+            }
+            
             cmds[cmd_count - 1].output_file = tokens[++t];
 
         } else {
