@@ -5,10 +5,13 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #define MAX_LINE 101
 #define MAX_ARGS MAX_LINE
 #define MAX_CMDS MAX_LINE
+
+extern char** environ;
 
 typedef struct {
     char* argv[MAX_ARGS];
@@ -31,11 +34,10 @@ void parse_and_run_command(const char* command) {
     /*  Parse through command input
         Tokenize each command
         Append command to execution buffer*/
-    for (size_t pos = 0; pos < command_len; pos++) {
-       
+    for (size_t pos = 0; pos <= command_len; pos++) {
         char c = command[pos];
 
-        if (c == '\0' || c == ' ' || c == '\t' || c == '\v') {
+        if (c == '\0' || c == ' ' || c == '\t' || c == '\v' || c == '\n' || c == '\r' || c == '\f') {
 
             if (token_len > 0) {
                 token[token_len] = '\0';
@@ -104,15 +106,19 @@ void parse_and_run_command(const char* command) {
     if (cmds[0].argv[0] == NULL) {
         fprintf(stderr, "Invalid command\n");
         return;
+    } 
+
+    if (strcmp(cmds[0].argv[0], "exit") == 0) {
+        exit(0);
     }
-    
+
     // Single command execution 
     if (cmd_count == 1) {
             
             pid_t pid = fork();
 
             if (pid < 0) {
-                perror("fork");
+                fprintf(stderr, "fork failed: %s\n", strerror(errno));
                 return;
             }
 
@@ -124,7 +130,7 @@ void parse_and_run_command(const char* command) {
                     int fd = open(cmds[0].input_file, O_RDONLY);
 
                     if (fd < 0) {
-                        perror("open");
+                        fprintf(stderr, "%s\n", strerror(errno));
                         exit(1);
                     }
 
@@ -142,7 +148,7 @@ void parse_and_run_command(const char* command) {
                     );
 
                     if (fd < 0) {
-                        perror("open");
+                        fprintf(stderr, "%s\n", strerror(errno));
                         exit(1);
                     }
 
@@ -150,9 +156,9 @@ void parse_and_run_command(const char* command) {
                     close(fd);
                 }
 
-                execv(cmds[0].argv[0], cmds[0].argv);
+                execve(cmds[0].argv[0], cmds[0].argv, environ);
 
-                perror("execv");
+                fprintf(stderr, "%s\n", strerror(errno));
                 exit(1);
             }
 
@@ -160,7 +166,11 @@ void parse_and_run_command(const char* command) {
             int status;
             waitpid(pid, &status, 0);
 
-            if (WIFEXITED(status)) printf("Exit status: %d\n", WEXITSTATUS(status));
+            if (WIFEXITED(status)) {
+                printf("exit status: %d\n", WEXITSTATUS(status));
+            } else {
+                printf("exit status: 1\n");
+            }
 
             return;
         }
@@ -172,7 +182,7 @@ void parse_and_run_command(const char* command) {
         for (size_t p = 0; p < cmd_count - 1; p++) {
 
             if (pipe(pipes[p]) < 0) {
-                perror("pipe");
+                fprintf(stderr, "pipe failed: %s\n", strerror(errno));
                 return;
             }
         }
@@ -184,7 +194,7 @@ void parse_and_run_command(const char* command) {
         pid_t pid = pids[p];
 
         if (pid < 0) {
-            perror("pipe");
+            fprintf(stderr, "fork failed: %s\n", strerror(errno));
             return;
         }
 
@@ -206,7 +216,7 @@ void parse_and_run_command(const char* command) {
                 int fd = open(cmds[p].input_file, O_RDONLY);
 
                 if (fd < 0) {
-                    perror("open");
+                    fprintf(stderr, "%s\n", strerror(errno));
                     exit(1);
                 }
 
@@ -224,7 +234,7 @@ void parse_and_run_command(const char* command) {
                 );
 
                 if (fd < 0) {
-                    perror("open");
+                    fprintf(stderr, "%s\n", strerror(errno));
                     exit(1);
                 }
 
@@ -238,9 +248,9 @@ void parse_and_run_command(const char* command) {
                 close(pipes[j][1]);
             }
 
-            execv(cmds[p].argv[0], cmds[p].argv);
+            execve(cmds[p].argv[0], cmds[p].argv, environ);
 
-            perror("execv");
+            fprintf(stderr, "%s\n", strerror(errno));
             exit(1);
         }          
     }
@@ -252,13 +262,21 @@ void parse_and_run_command(const char* command) {
         close(pipes[i][1]);
     }
 
-    for (size_t i = 0; i < cmd_count; i++) {
-        
-        int status;
-        waitpid(pids[i], &status, 0);
+    int statuses[MAX_CMDS];
 
-        if (WIFEXITED(status)) printf("Exit status: %d\n", WEXITSTATUS(status));
+    for (size_t i = 0; i < cmd_count; i++) {
+        waitpid(pids[i], &statuses[i], 0);
     }
+
+    for (size_t i = 0; i < cmd_count; i++) {
+
+        if (WIFEXITED(statuses[i])) {
+            printf("exit status: %d\n", WEXITSTATUS(statuses[i]));
+        } else {
+            printf("exit status: 1\n");
+        }
+    }
+    
 }
 
 
